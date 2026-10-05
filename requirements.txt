@@ -1,0 +1,33 @@
+# Install with `uv pip install -r requirements.txt`; it resolves this set in
+# seconds where pip takes minutes. vLLM pulls the CUDA stack, so expect a
+# multi-gigabyte download either way.
+
+# transformers 5 changed apply_chat_template(tokenize=True) to return a
+# BatchEncoding rather than a list of ids, which vLLM cannot consume.
+torch>=2.6,<3
+transformers==4.57.1
+peft==0.17.1
+accelerate==1.10.1
+vllm>=0.6,<1
+
+# utils/train/prepare_data.py builds the training set from these, and evalplus
+# imports datasets inside the sandbox. The floor matters: uv resolves a newer
+# fsspec first and backtracks to datasets 2.14, which crashes on current pyarrow.
+datasets>=3
+
+# evalplus runs MBPP+ inside the sandbox and imports these at module load.
+# Missing any of them fails only MBPP+, which the run reports rather than
+# aborting on -- but it fails every MBPP+ row, so they are not optional.
+appdirs
+termcolor
+wget
+tempdir
+multipledispatch
+tree-sitter
+tree-sitter-python
+
+# IFEval's official verifiers
+absl-py
+langdetect
+nltk
+immutabledict

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv*/
+
+# eval: built by utils/benchmarks.py, rebuilt in seconds, never committed
+vendor/
+raw/
+questions/
+runs/
+
+outputs/
+*.log
