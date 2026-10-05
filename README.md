@@ -237,17 +237,22 @@ publish results, credit the original benchmarks and follow their terms.
 
 ## Submission
 
-To submit your results, run:
-```bash
-git bundle create <first name>-<last name>.bundle --all
-```
-Then send us your .bundle file to hey(at)bottlecapai.com with subject in format: \<first name\>-\<last name\> \<token reduction\> \<accuracy change\> (don't worry if they're not great).
+Send us your work. Don't worry if you lost some accuracy, we want to see it anyway.
 
-Please also attach the `results.json` that `evaluate.py` wrote to your `--out` directory, and send us your trained model (or LoRA adapter) so we can evaluate it ourselves. If it's too big to attach to the email, upload it somewhere we can download it from, such as [Google Drive](https://drive.google.com) or [Hugging Face](https://huggingface.co), and include the link in your email.
+Please include:
 
-Include a short `IDEA.md` with what you tried and why, what worked, what didn't, and the hardware you used. Don't worry if accuracy dropped, send it anyway.
+- your code, as a git bundle: `git bundle create <first name>-<last name>.bundle --all`
+- the `results.json` that `evaluate.py` wrote to your `--out` directory
+- your trained model (or LoRA adapter), so we can evaluate it ourselves
+- a short `IDEA.md` with what you tried and why, what worked, what didn't, and the hardware you used
 
-Does accuracy start to drop as you shorten further? Send us several checkpoints along the way. We're interested in how your algorithm trades length for accuracy, and a few points on that curve tell us more than one. Use the checkpoint with the best result at the same accuracy in the email subject.
+Does accuracy start to drop as you shorten further? Send us several checkpoints along the way. We're interested in how your algorithm trades length for accuracy, and a few points on that curve tell us more than one.
+
+**How to send it**
+
+If you can, use the [submission page](https://bottlecapai.com/careers/thinkingcap-test-submission/): put everything above in one `.zip` of at most 500 MB, named `<first name>-<last name>.zip`, and upload it.
+
+If it doesn't fit, upload it to [Hugging Face](https://huggingface.co) or [Google Drive](https://drive.google.com) and email the link to hey(at)bottlecapai.com with the subject `<first name>-<last name> <token reduction> <accuracy change>` (use your best checkpoint's numbers).
 
 At this moment, we are interested mainly in candidates willing to relocate to Prague. (If you’re an exceptional fit, we’re happy to discuss possible support options.)
 
