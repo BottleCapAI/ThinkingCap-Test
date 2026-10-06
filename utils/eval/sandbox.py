@@ -130,11 +130,15 @@ def bwrap_command(evalplus, mbpp):
     runtime = Path(sys.base_prefix).resolve()
     mounts = [Path("/usr"), Path("/lib"), Path("/lib64"), environment, runtime,
               Path(evalplus), Path(mbpp), WORKER.resolve()]
-    command = ["bwrap", "--unshare-all", "--die-with-parent", "--new-session", "--clearenv"]
+    # bwrap applies these in order, so /tmp has to be mounted before the binds: a tmpfs laid
+    # down afterwards hides everything bound beneath it, and a checkout under /tmp then has no
+    # venv, no vendored evalplus and no worker script -- every MBPP+ row fails to grade.
+    command = ["bwrap", "--unshare-all", "--die-with-parent", "--new-session", "--clearenv",
+               "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
     for path in dict.fromkeys(path for path in mounts if path.exists()):
         command += ["--ro-bind", str(path), str(path)]
     command += runtime_alias(environment, runtime)
-    command += ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--chdir", "/tmp",
+    command += ["--chdir", "/tmp",
                 "--setenv", "HOME", "/tmp", "--setenv", "PATH", "/usr/bin:/bin",
                 "--setenv", "OPENBLAS_NUM_THREADS", "1", "--setenv", "OMP_NUM_THREADS", "1",
                 "--setenv", "PYTHONHASHSEED", "0",

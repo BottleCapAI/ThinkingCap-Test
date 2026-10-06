@@ -16,9 +16,13 @@ token budget.
 import json
 import math
 from pathlib import Path
+import re
 
 from utils.eval.recipe import SAMPLES, SAMPLING, SEED, token_cap
 from utils.eval.stats import compare_macro, compare_runs, floor, summarize
+
+# owner/name, the only shape a Hub id takes. Anything else is a path.
+HUB_ID = re.compile(r"[A-Za-z0-9][\w.-]*/[\w.-]+")
 
 # What has to match, and why a reader should care that it does not. A run is
 # only a controlled comparison if the other run asked the same questions in the
@@ -36,11 +40,19 @@ def compare(base_dir, candidate_dir):
     base_meta, base_rows = load(base_dir)
     new_meta, new_rows = load(candidate_dir)
     shared = check(base_meta, new_meta)
-    results, pooled = {}, {}
+    results, pooled, ungraded = {}, {}, {}
     for dataset in sorted({row["dataset"] for row in base_rows}):
         left, right = pair([r for r in base_rows if r["dataset"] == dataset],
                            [r for r in new_rows if r["dataset"] == dataset])
         if not left:
+            continue
+        # evaluate.py deliberately survives a grader that could not run and still writes its
+        # other benchmarks; this has to survive the same run. Dropping the benchmark keeps the
+        # rest of a comparison that cost hours of generation.
+        missing = [side for side, rows in (("base", left), ("candidate", right))
+                   if not any(row["correct"] is not None for row in rows)]
+        if missing:
+            ungraded[dataset] = {"rows": len(left), "runs": missing}
             continue
         group = pooled.setdefault(average_group(dataset), ([], []))
         group[0].extend(left)
@@ -53,10 +65,17 @@ def compare(base_dir, candidate_dir):
             "token_reduction": token_reduction(before, after),
             "intervals": compare_runs(left, right), "floor": floor(left, right),
         }
+    if not results:
+        raise ValueError(
+            "No benchmark could be compared; every one of them is ungraded in at least one run:\n"
+            + "\n".join(f"  {name}   no graded rows in the {' and '.join(detail['runs'])} run"
+                        for name, detail in sorted(ungraded.items()))
+            + "\n\nRe-grade the stored generations with:\n"
+              "  python evaluate.py --out <run directory> --regrade")
     return {"base": describe(base_dir, base_meta), "candidate": describe(candidate_dir, new_meta),
             "benchmarks": shared, "cohort_sha256": base_meta["cohort_sha256"],
             "samples": base_meta["samples"], "seed": base_meta["seed"], "results": results,
-            "average": average(pooled),
+            "ungraded_benchmarks": ungraded, "average": average(pooled),
             "full_evaluation": {"base": full_evaluation_problems(base_meta, base_rows),
                                 "candidate": full_evaluation_problems(new_meta, new_rows)}}
 
@@ -218,8 +237,9 @@ def loading_note(comparison):
     in the artifacts can tell that apart from a real difference.
     """
     def kind(side):
-        return "a local path" if "/" in side["model"] and not side["model"].count("/") == 1 \
-            else "a Hub id"
+        # A Hub id is owner/name and nothing else. Counting slashes called "./my-qwen3" a Hub
+        # id, which is the very spelling the README hands out for a local checkpoint.
+        return "a Hub id" if HUB_ID.fullmatch(side["model"]) else "a local path"
     if kind(comparison["base"]) != kind(comparison["candidate"]):
         return ("\nThese runs referenced their weights differently, one by Hub id and one\n"
                 "by local path. That alone shifts generation, so some of the difference\n"
@@ -235,9 +255,22 @@ def report(comparison):
                      f"x {result['samples']} samples)")
         lines += token_line(result) + accuracy_lines(result)
     lines += average_lines(comparison["average"])
+    lines.append(ungraded_note(comparison.get("ungraded_benchmarks")))
     lines.append(leaderboard_note(comparison["full_evaluation"]))
     lines.append(loading_note(comparison))
     return "\n".join(lines).rstrip()
+
+
+def ungraded_note(ungraded):
+    """Name each benchmark left out because a grader could not run, or "" when none was."""
+    if not ungraded:
+        return ""
+    lines = [f"    - {name}: no graded rows in the {' and '.join(detail['runs'])} run "
+             f"({detail['rows']} rows)" for name, detail in sorted(ungraded.items())]
+    return ("\nNOT COMPARED: a grader could not run on these benchmarks, so they are left out\n"
+            "of the table and of the average above.\n" + "\n".join(lines)
+            + "\n  Re-grade the stored generations with: "
+              "python evaluate.py --out <run directory> --regrade")
 
 
 def leaderboard_note(problems):

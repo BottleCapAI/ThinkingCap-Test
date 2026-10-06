@@ -67,6 +67,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh    # skip if you already have uv
 uv venv && source .venv/bin/activate
 uv pip install -r requirements.txt
 
+python utils/train/prepare_data.py    # writes data/train.jsonl, which train.py reads
 python train.py
 ```
 
@@ -133,11 +134,22 @@ python evaluate.py --out runs/base     # the full baseline
 ```
 
 The first command downloads the four benchmarks at pinned revisions and stores
-them in `data/questions.jsonl`. The second prints one row per benchmark (the
+them in `questions/questions.jsonl`. The second prints one row per benchmark (the
 table above) and writes `runs/base/` with the per-response `records.jsonl` and a
 `results.json` that records everything needed to interpret the scores. Score it
 once and keep it: every later run is compared against this directory with
 `compare.py`.
+
+Before committing to a full run, check the plumbing with `--smoke`. It answers a
+30-question subset, grades it exactly as a real run would, reports no scores, and
+takes about a minute:
+
+```bash
+python evaluate.py --out runs/check --smoke
+```
+
+It names any benchmark whose grader could not run. Finding that here costs a
+minute; finding it after a full run costs the run.
 
 ### Evaluation of your checkpoint
 
@@ -209,6 +221,15 @@ The last entry of the output averages the accuracy change (arithmetic mean) and 
 saved (geometric mean of the token ratios) over the benchmarks. It weights the four
 benchmarks equally, treating the three BFCL subsets as a single benchmark.
 
+### Running less of it
+
+If you do not have a fast GPU, we recommend not running the full evaluation while you
+develop — fewer benchmarks and fewer samples keep the loop short. For your final numbers,
+try to run all of it. If that is not possible, submit anyway and let us know what you did
+not run; we re-evaluate all submissions ourselves. Whatever you run, score the base model
+exactly as you score your checkpoint, or the comparison means nothing, and read the
+confidence interval.
+
 ### Sources and licenses
 
 | Benchmark | Source | License |
@@ -228,7 +249,7 @@ publish results, credit the original benchmarks and follow their terms.
 
 1. Start from **Qwen3-0.6B**. Full fine-tuning, LoRA, minor architectural changes[^1] and similar are all fine, as long as the result is still a roughly 0.6B-sized model that thinks before it answers.
 2. Do **not** train on the evaluation benchmarks.
-3. Measure with the provided evaluation and keep its settings (prompt, sampling, token cap) unchanged.
+3. Measure with the provided evaluation and keep its settings (prompt, sampling, token cap) unchanged. Fewer benchmarks, or fp16 where your GPU has no bf16, is fine if your baseline run matches.
 4. Document your idea in `IDEA.md` (motivation, method, results). Negative results are welcome—share what you learned!
 
 [^1]: The modified model must load with the standard Hugging Face Transformers and vLLM releases, since `evaluate.py` runs it through both and does not execute custom model code.
@@ -272,6 +293,13 @@ While this project is designed to run on **1 GPU**, there are a few things to ke
 
   On Colab, speed and session time run out before memory does: long generations on a T4 are slow and free sessions disconnect, so save checkpoints regularly.
 
+- Evaluating on a T4:
+  vLLM will not start there at all: it takes bf16 from the model config and the T4 has
+  no bf16. Add `dtype="half"` to the `LLM(...)` call in `load_engine`, and use the same
+  setting for your baseline run. The full evaluation also takes about five hours on a T4,
+  so if you can, rent an hour on any Ampere-or-newer card — an RTX 3090/4090, A5000, L4
+  or RTX PRO 6000 all run bf16 unchanged and finish in one to two hours.
+
 - Sampling:
   Qwen recommends temperature 0.6, top-p 0.95 and top-k 20 in thinking mode. Greedy decoding makes Qwen3 repeat itself, which looks like long reasoning but isn't.
 
@@ -287,4 +315,7 @@ Every question is answered 8 times, which the full evaluation requires, and ever
 - **Tokens saved** on a benchmark is `1 - tokens_yours / tokens_baseline`, where `tokens_yours` and `tokens_baseline` are the total numbers of generated tokens (thinking included) over all of the benchmark's responses, wrong and cut-off ones too.
 - **Average tokens saved** is `1 - (r_1 × r_2 × r_3 × r_4)^(1/4)`, where `r_i = tokens_yours / tokens_baseline` on benchmark `i`: the geometric mean of the four token ratios.
 
-<!-- TODO(dkubista): exact definition of "same accuracy" (resolution, confidence intervals) once the evaluation is final -->
+Both numbers come with a 95% confidence interval, from resampling whole questions
+with your run and the baseline's paired question by question. Read the interval,
+not only the point estimate: an accuracy change whose interval covers zero is a
+change this evaluation cannot distinguish from no change at all.

@@ -4,11 +4,15 @@ This only shows how to use our helpers (utils/train/prepare_data.py, utils/train
 to stick to them. Build your own method from here. Good luck!
 """
 
+from pathlib import Path
+
 import torch
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils.train.rewards import correctness
+
+TRAIN_DATA = Path("data/train.jsonl")
 
 
 def load(model_id):
@@ -31,8 +35,11 @@ def rollout(model, tokenizer, row, max_new_tokens=2048):
 
 
 def main():
+    if not TRAIN_DATA.exists():
+        raise SystemExit(f"{TRAIN_DATA} does not exist yet. Build the suggested datasets with:\n"
+                         "    python utils/train/prepare_data.py")
     model, tokenizer = load("Qwen/Qwen3-0.6B")
-    data = load_dataset("json", data_files="data/train.jsonl", split="train")  # python utils/train/prepare_data.py
+    data = load_dataset("json", data_files=str(TRAIN_DATA), split="train")
 
     row = data[0]
     reply, length = rollout(model, tokenizer, row)

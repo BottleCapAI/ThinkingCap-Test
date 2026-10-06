@@ -464,10 +464,20 @@ def report(results, suite, failed=None):
     if suite.get("smoke"):
         # Refusing to print scores is the point: a number from a handful of
         # questions would be indistinguishable on a leaderboard from a real one.
+        # A benchmark that failed to grade must still be named: a smoke run exists to
+        # find exactly that before a full run spends hours generating.
         graded = sum(r["n"] for r in results.values())
-        return (f"Smoke run on {suite['total']} questions: generation and grading completed, "
-                f"{graded} rows graded.\nNo scores are reported. "
-                "Drop --smoke to evaluate.")
+        lines = [f"Smoke run on {suite['total']} questions: generation completed, "
+                 f"{graded} rows graded."]
+        for name, detail in sorted((failed or {}).items()):
+            lines.append(f"\n{name}: NOT GRADED, all {detail['rows']} rows failed")
+            for message, count in detail["errors"].items():
+                lines.append(f"  {count}x {str(message).splitlines()[0][:140]}")
+        if failed:
+            lines.append("\nFix the above before a full run; this benchmark would score "
+                         "nothing there either.")
+        lines.append("No scores are reported. Drop --smoke to evaluate.")
+        return "\n".join(lines)
     lines = [f"questions: {suite.get('selection', 'full')} "
              f"({suite['cohort_sha256'][:8]})  {suite['total']} prompts",
              f"{'benchmark':<22}{'accuracy':>22}{'mean tokens':>20}"]

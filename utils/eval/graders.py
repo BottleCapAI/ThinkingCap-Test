@@ -16,8 +16,10 @@ utils/train/rewards.py grades the *training* data and is deliberately more forgi
 than this file: it accepts \boxed{42}, $42, 84/2 and <answer>42</answer>, which
 grade_numeric rejects. That is not an oversight in either -- the two prompts ask
 for different things, and each grader matches its own prompt. It does mean a
-reward of 1.0 during training is not a guarantee of a point here, and on the
-measured baseline 47% of SVAMP replies fall in that gap.
+reward of 1.0 during training is not a guarantee of a point here: on the base
+model's SVAMP run, 0.4% of replies are accepted by the reward and rejected here.
+The gap is small because both prompts ask for the same "Final answer:" line, so
+it widens as soon as you train the model to answer in some other shape.
 """
 
 import ast

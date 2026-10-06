@@ -2,11 +2,15 @@ __pycache__/
 *.pyc
 .venv*/
 
-# eval: built by utils/benchmarks.py, rebuilt in seconds, never committed
+# eval: built by utils/eval/benchmarks.py, rebuilt in seconds, never committed
 vendor/
 raw/
 questions/
 runs/
+
+# training data: rebuilt by utils/train/prepare_data.py; it would otherwise ride
+# along in the `git bundle --all` the submission asks for
+data/
 
 outputs/
 *.log

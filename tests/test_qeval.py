@@ -11,7 +11,8 @@ import unittest
 from evaluate import (BENCHMARKS, DEFAULT_MAX_TOKENS, MAX_TOKENS, caps_in_use, collect,
                       load_suite, report, select, token_cap)
 from utils.eval import benchmarks, sandbox
-from utils.eval.compare import average, average_group, check, full_evaluation_problems, pair
+from utils.eval.compare import (average, average_group, check, compare,
+                                full_evaluation_problems, loading_note, pair, report as compare_report)
 from utils.eval.recipe import SAMPLES, SAMPLING, SEED
 from utils.eval.graders import (decode_calls, extract_code, load_sanitize, mbpp_code, final_answer, grade_numeric,
                            grade_call, importable, split_thinking)
@@ -548,3 +549,99 @@ class Prompts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def run_dir(root, name, adapter, ungraded=(), tokens=400):
+    """A minimal finished run on two datasets, for the comparison guards."""
+    directory = Path(root) / name
+    directory.mkdir(parents=True)
+    rows = []
+    for dataset in ("mbpp", "svamp"):
+        for prompt in range(4):
+            for sample in range(2):
+                rows.append({"id": f"{dataset}-{prompt}", "dataset": dataset,
+                             "sample_index": sample, "truncated": False, "reasoning_tokens": 0,
+                             "output_tokens": tokens,
+                             "correct": None if dataset in ungraded else (prompt % 2 == 0)})
+    (directory / "records.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    (directory / "results.json").write_text(json.dumps({
+        "model": "Qwen/Qwen3-0.6B", "adapter": adapter, "benchmarks": ["mbpp", "svamp"],
+        "samples": SAMPLES, "seed": SEED, "sampling": SAMPLING,
+        "max_tokens": {"mbpp": MAX_TOKENS["mbpp"], "svamp": DEFAULT_MAX_TOKENS},
+        "cohort_sha256": "abc", "cohort_total": 8, "selection": "full", "smoke": False,
+        "failed_benchmarks": {d: {} for d in ungraded}}))
+    return str(directory)
+
+
+class UngradedBenchmarks(unittest.TestCase):
+    """A grader that could not run must cost its own benchmark, never the whole comparison."""
+
+    def test_an_ungraded_benchmark_is_skipped_and_named(self):
+        with tempfile.TemporaryDirectory() as root:
+            base = run_dir(root, "base", None)
+            mine = run_dir(root, "mine", "/x/lora", ungraded=("mbpp",), tokens=320)
+            comparison = compare(base, mine)
+            self.assertEqual(sorted(comparison["results"]), ["svamp"])
+            self.assertEqual(sorted(comparison["ungraded_benchmarks"]), ["mbpp"])
+            self.assertEqual(comparison["ungraded_benchmarks"]["mbpp"]["runs"], ["candidate"])
+            text = compare_report(comparison)
+            self.assertIn("NOT COMPARED", text)
+            self.assertIn("mbpp", text)
+
+    def test_the_surviving_benchmark_is_still_scored(self):
+        with tempfile.TemporaryDirectory() as root:
+            base = run_dir(root, "base", None)
+            mine = run_dir(root, "mine", "/x/lora", ungraded=("mbpp",), tokens=320)
+            svamp = compare(base, mine)["results"]["svamp"]
+            self.assertAlmostEqual(svamp["token_reduction"], 0.2)
+
+    def test_every_benchmark_ungraded_raises_a_message_that_names_them(self):
+        with tempfile.TemporaryDirectory() as root:
+            base = run_dir(root, "base", None)
+            mine = run_dir(root, "mine", "/x/lora", ungraded=("mbpp", "svamp"))
+            with self.assertRaises(ValueError) as caught:
+                compare(base, mine)
+            self.assertIn("mbpp", str(caught.exception))
+            self.assertIn("--regrade", str(caught.exception))
+
+
+class SmokeFailures(unittest.TestCase):
+    def test_a_failed_benchmark_is_named_in_a_smoke_run(self):
+        suite = {"smoke": True, "total": 30, "selection": "smoke", "cohort_sha256": "a" * 64}
+        results = {"svamp": {"n": 40}}
+        failed = {"mbpp": {"rows": 40, "errors": {"Sandbox worker failed: boom": 40}}}
+        text = report(results, suite, failed)
+        self.assertIn("NOT GRADED", text)
+        self.assertIn("mbpp", text)
+        self.assertIn("Sandbox worker failed", text)
+
+    def test_a_clean_smoke_run_says_nothing_about_failures(self):
+        suite = {"smoke": True, "total": 30, "selection": "smoke", "cohort_sha256": "a" * 64}
+        text = report({"svamp": {"n": 40}}, suite, {})
+        self.assertNotIn("NOT GRADED", text)
+        self.assertIn("No scores are reported", text)
+
+
+class WeightsReference(unittest.TestCase):
+    """./my-qwen3 is the spelling the README hands out; it is a path, not a Hub id."""
+
+    def note(self, base_model, candidate_model):
+        return loading_note({"base": {"model": base_model, "adapter": None},
+                             "candidate": {"model": candidate_model, "adapter": None}})
+
+    def test_a_dot_slash_path_is_not_mistaken_for_a_hub_id(self):
+        self.assertIn("referenced their weights differently",
+                      self.note("Qwen/Qwen3-0.6B", "./my-qwen3"))
+
+    def test_two_hub_ids_do_not_warn(self):
+        self.assertEqual(self.note("Qwen/Qwen3-0.6B", "someone/their-qwen3"), "")
+
+    def test_two_paths_do_not_warn(self):
+        self.assertEqual(self.note("./a", "/home/me/b"), "")
+
+
+class SandboxMountOrder(unittest.TestCase):
+    def test_tmp_is_mounted_before_the_binds_it_would_otherwise_hide(self):
+        command = sandbox.bwrap_command("/somewhere/evalplus", "/somewhere/mbpp.jsonl")
+        self.assertLess(command.index("--tmpfs"), command.index("--ro-bind"),
+                        "a tmpfs on /tmp after the binds hides a checkout under /tmp")

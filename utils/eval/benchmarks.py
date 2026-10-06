@@ -2,7 +2,7 @@
 
     python utils/eval/benchmarks.py
 
-Every line of data/questions.jsonl looks like:
+Every line of questions/questions.jsonl looks like:
 
     {"id": "svamp-1", "dataset": "svamp", "grader": "numeric", "answer": "42",
      "messages": [{"role": "user", "content": "...question..."}], "seed_index": 7}
