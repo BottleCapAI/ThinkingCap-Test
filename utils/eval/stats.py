@@ -142,8 +142,10 @@ def floor(base, candidate):
         Var(mean) = between / P  +  within / (P x k)
 
     Only the second term shrinks with more samples k, so the first is a floor.
-    Getting under it needs more questions, not more samples. Returns None when
-    there is nothing to estimate from.
+    Getting under it needs more questions, not more samples. The variance of the
+    per-question means still contains within / k, so that share is estimated from
+    the spread inside each question and subtracted (the ANOVA variance-components
+    estimate). Returns None when there is nothing to estimate from.
     """
     per_prompt = {}
     for left, right in zip(base, candidate):
@@ -151,12 +153,17 @@ def floor(base, candidate):
             continue
         per_prompt.setdefault(left["id"], []).append(int(right["correct"]) - int(left["correct"]))
     groups = [v for v in per_prompt.values() if v]
-    if len(groups) < 2:
+    repeated = [v for v in groups if len(v) > 1]
+    if len(groups) < 2 or not repeated:
         return None
     means = [sum(v) / len(v) for v in groups]
     average = sum(means) / len(means)
-    between = sum((m - average) ** 2 for m in means) / (len(means) - 1)
-    return {"prompts": len(groups), "between_variance": between,
+    spread = sum((m - average) ** 2 for m in means) / (len(means) - 1)
+    within = sum(sum((x - sum(v) / len(v)) ** 2 for x in v) / (len(v) - 1)
+                 for v in repeated) / len(repeated)
+    shrinkable = within * sum(1 / len(v) for v in groups) / len(groups)
+    between = max(0.0, spread - shrinkable)
+    return {"prompts": len(groups), "between_variance": between, "within_variance": within,
             "half_width_pp": 1.96 * math.sqrt(between / len(groups)) * 100}
 
 

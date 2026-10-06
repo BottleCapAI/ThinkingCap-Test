@@ -15,7 +15,7 @@ from utils.eval.compare import average, average_group, check, full_evaluation_pr
 from utils.eval.recipe import SAMPLES, SAMPLING, SEED
 from utils.eval.graders import (decode_calls, extract_code, load_sanitize, mbpp_code, final_answer, grade_numeric,
                            grade_call, importable, split_thinking)
-from utils.eval.stats import confidence, summarize
+from utils.eval.stats import confidence, floor, summarize
 
 
 def rows(pattern, tokens):
@@ -177,6 +177,28 @@ class Intervals(unittest.TestCase):
         measured = rows([1, 1, 0, 0], 100)
         measured[0]["correct"] = None
         self.assertEqual(summarize(measured)["ungraded"], 1)
+
+class Floor(unittest.TestCase):
+    @staticmethod
+    def paired(per_question):
+        """Rows for runs whose per-sample difference (candidate - base) is given per question."""
+        base, cand = [], []
+        for i, diffs in enumerate(per_question):
+            for d in diffs:
+                base.append({"id": i, "correct": d < 0})
+                cand.append({"id": i, "correct": d > 0})
+        return base, cand
+
+    def test_sampling_noise_inside_questions_is_not_a_floor(self):
+        self.assertEqual(floor(*self.paired([[1, 0], [0, 0], [1, 0], [0, 0]]))["half_width_pp"], 0)
+
+    def test_differences_between_questions_are_the_floor(self):
+        result = floor(*self.paired([[1, 1], [-1, -1], [1, 1], [-1, -1]]))
+        self.assertAlmostEqual(result["half_width_pp"], 1.96 * (4 / 3 / 4) ** 0.5 * 100)
+
+    def test_one_sample_per_question_cannot_separate_the_two(self):
+        self.assertIsNone(floor(*self.paired([[1], [0], [-1]])))
+
 
 class BatchGrading(unittest.TestCase):
     def items(self, count, tasks=3):
