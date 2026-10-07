@@ -275,7 +275,7 @@ If you can, use the [submission page](https://bottlecapai.com/careers/thinkingca
 
 If it doesn't fit, upload it to [Hugging Face](https://huggingface.co) or [Google Drive](https://drive.google.com) and email the link to hey(at)bottlecapai.com with the subject `<first name>-<last name> <token reduction> <accuracy change>` (use your best checkpoint's numbers).
 
-At this moment, we are interested mainly in candidates willing to relocate to Prague. (If you’re an exceptional fit, we’re happy to discuss possible support options.)
+At this moment, we are interested mainly in candidates willing to relocate to Prague. If you’re an exceptional fit, we’re happy to discuss possible support options.
 
 ---
 ## Technical Notes
@@ -298,7 +298,7 @@ While this project is designed to run on **1 GPU**, there are a few things to ke
   no bf16. Add `dtype="half"` to the `LLM(...)` call in `load_engine`, and use the same
   setting for your baseline run. The full evaluation also takes about five hours on a T4,
   so if you can, rent an hour on any Ampere-or-newer card — an RTX 3090/4090, A5000, L4
-  or RTX PRO 6000 all run bf16 unchanged and finish in one to two hours.
+  or RTX PRO 6000 all run bf16 unchanged and finish under two hours.
 
 - Sampling:
   Qwen recommends temperature 0.6, top-p 0.95 and top-k 20 in thinking mode. Greedy decoding makes Qwen3 repeat itself, which looks like long reasoning but isn't.
@@ -309,11 +309,11 @@ While this project is designed to run on **1 GPU**, there are a few things to ke
 
 Every question is answered 8 times, which the full evaluation requires, and every response is scored on its own.
 
-- **Accuracy** on a benchmark is the percentage of its responses that are correct. An answer cut off by the token cap is wrong.
-- **Averaged accuracy** is the mean of the accuracies of the four benchmarks (the three BFCL subsets count as one).
+- **Accuracy** on a benchmark is the percentage of its responses that are correct. An answer cut off by the token cap counts as wrong.
+- **Averaged accuracy** is the mean of the accuracies of the four benchmarks; the three BFCL subsets count as one.
 - **Accuracy change** is your averaged accuracy minus the baseline's, in percentage points.
 - **Tokens saved** on a benchmark is `1 - tokens_yours / tokens_baseline`, where `tokens_yours` and `tokens_baseline` are the total numbers of generated tokens (thinking included) over all of the benchmark's responses, wrong and cut-off ones too.
-- **Average tokens saved** is `1 - (r_1 × r_2 × r_3 × r_4)^(1/4)`, where `r_i = tokens_yours / tokens_baseline` on benchmark `i`: the geometric mean of the four token ratios.
+- **Average tokens saved** is `1 - (r_1 × r_2 × r_3 × r_4)^(1/4)`, where `r_i = tokens_yours / tokens_baseline` on benchmark `i`; the geometric mean of the four token ratios.
 
 Both numbers come with a 95% confidence interval, from resampling whole questions
 with your run and the baseline's paired question by question. Read the interval,
