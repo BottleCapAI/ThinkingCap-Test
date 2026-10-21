@@ -269,6 +269,8 @@ Please include:
 
 Does accuracy start to drop as you shorten further? Send us several checkpoints along the way. We're interested in how your algorithm trades length for accuracy, and a few points on that curve tell us more than one.
 
+If you do send several, pick the one you consider your best and put it in the root of the archive, with the rest under `other-checkpoints/`.
+
 **How to send it**
 
 If you can, use the [submission page](https://bottlecapai.com/careers/thinkingcap-test-submission/): put everything above in one `.zip` of at most 500 MB, named `<first name>-<last name>.zip`, and upload it.
