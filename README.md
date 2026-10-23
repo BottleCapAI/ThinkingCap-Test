@@ -258,7 +258,9 @@ publish results, credit the original benchmarks and follow their terms.
 
 ## Submission
 
-Send us your work. Don't worry if you lost some accuracy, we want to see it anyway.
+Send us your work. Don't worry if you lost some accuracy, we want to see it anyway — as a
+rough guide, we would expect a good result to shorten by more than 20%, and to give up no
+more than about 0.2 accuracy points for each 1% of tokens it saves.
 
 Please include:
 
